@@ -6,6 +6,7 @@
 Dockerfile
 .dockerignore
 docker-compose.yml
+Dockerfile.huggingface
 
 # Node dependencies (install these inside the container)
 node_modules
@@ -76,5 +77,6 @@ worker/
 README.md
 README_zh.md
 LICENSE
+get-gemhub.sh
 doc/
 data/

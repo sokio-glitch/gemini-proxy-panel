@@ -1,4 +1,4 @@
-const { db } = require('../db'); // Import the database connection
+const dbModule = require('../db'); // Import the database module
 
 /**
  * Express middleware to validate the Worker API Key provided in the Authorization header.
@@ -16,6 +16,13 @@ async function requireWorkerAuth(req, res, next) {
     }
 
     try {
+        // Get database instance
+        const db = dbModule.db;
+        if (!db) {
+            console.error('Database not available for worker key validation');
+            return res.status(500).json({ error: 'Database not available' });
+        }
+
         // Query the database to see if the key exists
         const sql = `SELECT api_key FROM worker_keys WHERE api_key = ?`;
         db.get(sql, [workerApiKey], (err, row) => {

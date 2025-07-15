@@ -3,13 +3,9 @@ const crypto = require('crypto');
 const SESSION_COOKIE_NAME = '__session';
 const SESSION_DURATION_SECONDS = 1 * 60 * 60; // 1 hour
 
-// Use environment variables for secrets
-const SESSION_SECRET_KEY = process.env.SESSION_SECRET_KEY;
-
-if (!SESSION_SECRET_KEY) {
-    console.error("FATAL: SESSION_SECRET_KEY environment variable is not set. Session management disabled.");
-    // In a real app, you might throw an error or exit
-}
+// Auto-generate session secret key on startup for better security
+const SESSION_SECRET_KEY = crypto.randomBytes(32).toString('hex');
+console.log("Auto-generated session secret key for this session.");
 
 /**
  * Converts Buffer to Base64 URL safe string.
@@ -40,10 +36,6 @@ function base64UrlToBuffer(base64url) {
  * @returns {Promise<string|null>} Session token or null on error.
  */
 async function generateSessionToken() {
-    if (!SESSION_SECRET_KEY) {
-        console.error("Cannot generate session token: SESSION_SECRET_KEY is not set.");
-        return null;
-    }
     try {
         const expiration = Math.floor(Date.now() / 1000) + SESSION_DURATION_SECONDS;
         const payload = JSON.stringify({ exp: expiration });
@@ -68,8 +60,7 @@ async function generateSessionToken() {
  * @returns {Promise<boolean>} True if valid and not expired, false otherwise.
  */
 async function verifySessionToken(token) {
-    if (!SESSION_SECRET_KEY || !token) {
-        // console.error("Cannot verify session token: SESSION_SECRET_KEY or token missing.");
+    if (!token) {
         return false;
     }
     try {

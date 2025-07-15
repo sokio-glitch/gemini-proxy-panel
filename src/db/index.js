@@ -50,34 +50,121 @@ if (githubProject && githubToken) {
   }
 }
 
-// Initialize the database connection
-// The OPEN_READWRITE | OPEN_CREATE flag ensures the file is created if it doesn't exist.
-const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, async (err) => {
-  if (err) {
-    console.error('Error opening database:', err.message);
-    throw err; // Throw error to stop the application if DB connection fails
-  } else {
-    console.log('Connected to the SQLite database.');
-    
-    // Initialize database schema first
-    await new Promise((resolve, reject) => {
-      initializeDatabase((err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-    
-    // Try to download database from GitHub if configured
-    if (githubSync) {
-      try {
-        await githubSync.downloadDatabase();
-      } catch (err) {
-        console.error('Failed to download database from GitHub:', err.message);
-        console.log('Continuing with local database...');
+// Function to validate if a file is a valid SQLite database
+function validateDatabaseFile(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) {
+      return { valid: false, reason: 'File does not exist' };
+    }
+
+    const buffer = fs.readFileSync(filePath, { encoding: null });
+    if (buffer.length < 16) {
+      return { valid: false, reason: 'File too small to be a valid SQLite database' };
+    }
+
+    // Check SQLite file header
+    const sqliteHeader = Buffer.from("SQLite format 3\0");
+    const fileHeader = buffer.subarray(0, 16);
+
+    if (Buffer.compare(fileHeader, sqliteHeader) === 0) {
+      return { valid: true, reason: 'Valid SQLite database' };
+    } else {
+      return { valid: false, reason: 'Invalid SQLite header' };
+    }
+  } catch (error) {
+    return { valid: false, reason: `Error reading file: ${error.message}` };
+  }
+}
+
+// Initialize database with proper GitHub sync handling
+async function initializeDatabase() {
+  // Try to download database from GitHub BEFORE opening the database connection
+  if (githubSync) {
+    try {
+      console.log('Attempting to download database from GitHub before opening connection...');
+      const downloadSuccess = await githubSync.downloadDatabase();
+
+      // Validate the downloaded database file
+      if (downloadSuccess && fs.existsSync(dbPath)) {
+        const validation = validateDatabaseFile(dbPath);
+        if (!validation.valid) {
+          console.warn(`Downloaded database file is invalid: ${validation.reason}`);
+          console.log('Removing invalid database file and creating a new one...');
+          try {
+            fs.unlinkSync(dbPath);
+          } catch (unlinkErr) {
+            console.error('Failed to remove invalid database file:', unlinkErr.message);
+          }
+        } else {
+          console.log('Downloaded database file validation passed');
+        }
       }
+    } catch (err) {
+      console.error('Failed to download database from GitHub:', err.message);
+      console.log('Continuing with local database...');
     }
   }
-});
+
+  return new Promise((resolve, reject) => {
+    // Initialize the database connection after GitHub sync is complete
+    // The OPEN_READWRITE | OPEN_CREATE flag ensures the file is created if it doesn't exist.
+    const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, async (err) => {
+      if (err) {
+        console.error('Error opening database:', err.message);
+        reject(err); // Reject to stop the application if DB connection fails
+      } else {
+        console.log('Connected to the SQLite database.');
+
+        // Initialize database schema
+        try {
+          await new Promise((schemaResolve, schemaReject) => {
+            // Pass the current database instance to the schema initialization function
+            initializeDatabaseSchemaInternal.call({ db: db }, (schemaErr) => {
+              if (schemaErr) schemaReject(schemaErr);
+              else schemaResolve();
+            });
+          });
+
+          resolve(db);
+        } catch (schemaErr) {
+          console.error('Failed to initialize database schema:', schemaErr.message);
+          reject(schemaErr);
+        }
+      }
+    });
+  });
+}
+
+// Start the database initialization
+let db;
+initializeDatabase()
+  .then(async (database) => {
+    db = database;
+    console.log('Database initialization completed successfully.');
+
+    // Initialize Vertex service after database is ready and exported
+    try {
+      const vertexService = require('../services/vertexProxyService');
+      console.log('Initializing Vertex AI service after database setup...');
+      await vertexService.initializeVertexCredentials();
+    } catch (err) {
+      console.error('Failed to initialize Vertex service:', err.message);
+    }
+
+    // Initialize scheduler service after database is ready
+    try {
+      const schedulerService = require('../services/schedulerService');
+      console.log('Initializing Scheduler Service after database setup...');
+      await schedulerService.initialize();
+      console.log('Scheduler Service: Initialized successfully');
+    } catch (err) {
+      console.error('Scheduler Service: Failed to initialize:', err.message);
+    }
+  })
+  .catch((err) => {
+    console.error('Fatal error during database initialization:', err.message);
+    process.exit(1);
+  });
 
 // Function to trigger GitHub sync (now always delayed)
 async function syncToGitHub() {
@@ -146,8 +233,17 @@ const createTablesSQL = `
 `;
 
 // Function to initialize the database schema
-function initializeDatabase(callback) {
-  db.exec(createTablesSQL, (err) => {
+function initializeDatabaseSchemaInternal(callback) {
+  // Use the database instance passed via 'this' context or fall back to global db
+  const currentDb = this?.db || db;
+  if (!currentDb) {
+    const error = new Error('Database instance not available for schema initialization');
+    console.error(error.message);
+    if (callback) callback(error);
+    return;
+  }
+
+  currentDb.exec(createTablesSQL, (err) => {
     if (err) {
       console.error('Error creating database tables:', err.message);
       if (callback) callback(err);
@@ -161,13 +257,15 @@ function initializeDatabase(callback) {
 
 // Function to safely close the database connection
 function closeDatabase() {
-  db.close((err) => {
-    if (err) {
-      console.error('Error closing database:', err.message);
-    } else {
-      console.log('Database connection closed.');
-    }
-  });
+  if (db) {
+    db.close((err) => {
+      if (err) {
+        console.error('Error closing database:', err.message);
+      } else {
+        console.log('Database connection closed.');
+      }
+    });
+  }
 }
 
 // Gracefully close the database on application exit
@@ -183,6 +281,6 @@ process.on('SIGTERM', () => {
 
 // Export the database connection instance and sync functions
 module.exports = {
-  db,
+  get db() { return db; }, // Use getter to ensure db is available when accessed
   syncToGitHub
 };

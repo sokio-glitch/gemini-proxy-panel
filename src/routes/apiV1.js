@@ -27,20 +27,26 @@ router.get('/models', async (req, res, next) => {
             // Add other relevant properties if available/needed
         }));
 
-        // Add search versions for gemini-2.0+ series models
-        const searchModels = Object.keys(modelsConfig)
-            .filter(modelId => 
-                // Match gemini-2.0, gemini-2.5, gemini-3.0, etc. series models
-                /^gemini-[2-9]\.\d/.test(modelId) && 
-                // Exclude models that are already search versions
-                !modelId.endsWith('-search')
-            )
-            .map(modelId => ({
-                id: `${modelId}-search`,
-                object: "model",
-                created: Math.floor(Date.now() / 1000),
-                owned_by: "google",
-            }));
+        // Check if web search is enabled
+        const webSearchEnabled = String(await configService.getSetting('web_search', '0')) === '1';
+
+        // Add search versions for gemini-2.0+ series models only if web search is enabled
+        let searchModels = [];
+        if (webSearchEnabled) {
+            searchModels = Object.keys(modelsConfig)
+                .filter(modelId =>
+                    // Match gemini-2.0, gemini-2.5, gemini-3.0, etc. series models
+                    /^gemini-[2-9]\.\d/.test(modelId) &&
+                    // Exclude models that are already search versions
+                    !modelId.endsWith('-search')
+                )
+                .map(modelId => ({
+                    id: `${modelId}-search`,
+                    object: "model",
+                    created: Math.floor(Date.now() / 1000),
+                    owned_by: "google",
+                }));
+        }
         
         // Add non-thinking versions for gemini-2.5-flash-preview models
         const nonThinkingModels = Object.keys(modelsConfig)
@@ -102,7 +108,153 @@ router.post('/chat/completions', async (req, res, next) => {
         }
 
         let result;
-        
+
+        // KEEPALIVE mode setup - prepare heartbeat callback if needed
+        let keepAliveCallback = null;
+        const keepAliveEnabled = String(await configService.getSetting('keepalive', '0')) === '1';
+        const isSafetyEnabled = await configService.getWorkerKeySafetySetting(workerApiKey);
+        const useKeepAlive = keepAliveEnabled && stream && !isSafetyEnabled;
+
+        // Debug logging for KEEPALIVE mode
+        console.log(`KEEPALIVE Debug - keepAliveEnabled: ${keepAliveEnabled}, stream: ${stream}, isSafetyEnabled: ${isSafetyEnabled}, useKeepAlive: ${useKeepAlive}`);
+
+        if (useKeepAlive) {
+            // Set up KEEPALIVE heartbeat management
+            const { Readable } = require('stream');
+            const keepAliveSseStream = new Readable({ read() {} });
+            let keepAliveTimerId = null;
+            let isConnectionClosed = false;
+
+            // Function to safely clean up resources
+            const cleanup = () => {
+                if (keepAliveTimerId) {
+                    clearInterval(keepAliveTimerId);
+                    keepAliveTimerId = null;
+                }
+                isConnectionClosed = true;
+            };
+
+            // Monitor client connection status
+            res.on('close', () => {
+                console.log('KEEPALIVE: Client connection closed');
+                cleanup();
+            });
+
+            res.on('error', (err) => {
+                console.error('KEEPALIVE: Client connection error:', err);
+                cleanup();
+            });
+
+            // Handle stream errors
+            keepAliveSseStream.on('error', (err) => {
+                console.error('KEEPALIVE: Stream error:', err);
+                cleanup();
+            });
+
+            keepAliveSseStream.on('end', () => {
+                console.log('KEEPALIVE: Stream ended');
+                cleanup();
+            });
+
+            keepAliveSseStream.on('finish', () => {
+                console.log('KEEPALIVE: Stream finished');
+                cleanup();
+            });
+
+            const sendKeepAliveSseChunk = () => {
+                // Check multiple connection states
+                if (isConnectionClosed || res.writableEnded || res.destroyed || !res.writable) {
+                    cleanup();
+                    return;
+                }
+
+                try {
+                    const keepAliveSseData = {
+                        id: "keepalive",
+                        object: "chat.completion.chunk",
+                        created: Math.floor(Date.now() / 1000),
+                        model: requestedModelId,
+                        choices: [{ index: 0, delta: {}, finish_reason: null }]
+                    };
+                    keepAliveSseStream.push(`data: ${JSON.stringify(keepAliveSseData)}\n\n`);
+                } catch (err) {
+                    console.error('KEEPALIVE: Error sending heartbeat:', err);
+                    cleanup();
+                }
+            };
+
+            // Set streaming headers for KEEPALIVE mode
+            res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-alive');
+            res.setHeader('X-Proxied-By', 'gemini-proxy-panel-node');
+
+            // Pipe stream to response after setting up error handlers
+            const pipeStream = keepAliveSseStream.pipe(res);
+
+            // Handle pipe errors
+            pipeStream.on('error', (err) => {
+                console.error('KEEPALIVE: Pipe error:', err);
+                cleanup();
+            });
+
+            // Create callback object for geminiProxyService
+            keepAliveCallback = {
+                startHeartbeat: () => {
+                    console.log('KEEPALIVE: Starting heartbeat (3 second intervals)');
+                    keepAliveTimerId = setInterval(sendKeepAliveSseChunk, 3000); // 3 second intervals
+                    sendKeepAliveSseChunk(); // Send first one immediately
+                },
+                stopHeartbeat: () => {
+                    console.log('KEEPALIVE: Stopping heartbeat');
+                    cleanup();
+                },
+                sendFinalResponse: (responseData) => {
+                    try {
+                        // Double-check connection status
+                        if (res.writableEnded || res.destroyed || !res.writable) {
+                            console.warn("KEEPALIVE: Response stream ended before data could be sent.");
+                            return;
+                        }
+
+                        const openAIResponse = JSON.parse(transformUtils.transformGeminiResponseToOpenAI(
+                            responseData,
+                            requestedModelId
+                        ));
+                        const content = openAIResponse.choices[0].message.content || "";
+                        const completeChunk = {
+                            id: `chatcmpl-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+                            object: "chat.completion.chunk",
+                            created: Math.floor(Date.now() / 1000),
+                            model: requestedModelId,
+                            choices: [{
+                                index: 0,
+                                delta: { role: "assistant", content: content },
+                                finish_reason: openAIResponse.choices[0].finish_reason || "stop"
+                            }]
+                        };
+
+                        keepAliveSseStream.push(`data: ${JSON.stringify(completeChunk)}\n\n`);
+                        keepAliveSseStream.push('data: [DONE]\n\n');
+                        keepAliveSseStream.push(null); // End the stream
+                    } catch (error) {
+                        console.error("Error processing KEEPALIVE final response:", error);
+                        const errorPayload = {
+                            error: {
+                                message: error.message || 'Failed to process KEEPALIVE response',
+                                type: error.type || 'keepalive_proxy_error',
+                                code: error.code,
+                                status: error.status
+                            }
+                        };
+                        keepAliveSseStream.push(`data: ${JSON.stringify(errorPayload)}\n\n`);
+                        keepAliveSseStream.push('data: [DONE]\n\n');
+                        keepAliveSseStream.push(null);
+                    }
+                }
+            };
+        }
+
         // Check if it's a Vertex model (with [v] prefix) and confirm Vertex feature is enabled
         if (requestedModelId && requestedModelId.startsWith('[v]') && vertexProxyService.isVertexEnabled()) {
             // Use Vertex proxy service to handle the request
@@ -110,7 +262,8 @@ router.post('/chat/completions', async (req, res, next) => {
             result = await vertexProxyService.proxyVertexChatCompletions(
                 openAIRequestBody,
                 workerApiKey,
-                stream
+                stream,
+                keepAliveCallback
             );
         } else {
             // Use Gemini proxy service to handle the request with optional thinkingBudget
@@ -118,25 +271,80 @@ router.post('/chat/completions', async (req, res, next) => {
                 openAIRequestBody,
                 workerApiKey,
                 stream,
-                thinkingBudget
+                thinkingBudget,
+                keepAliveCallback
             );
         }
 
         // Check if the service returned an error
         if (result.error) {
-            // Ensure Content-Type is set for error responses
-            res.setHeader('Content-Type', 'application/json');
-            return res.status(result.status || 500).json({ error: result.error });
+            // In KEEPALIVE mode, send error through the heartbeat stream
+            if (useKeepAlive && keepAliveCallback) {
+                console.log('KEEPALIVE: Sending error response through heartbeat stream');
+                try {
+                    // Stop heartbeat first
+                    keepAliveCallback.stopHeartbeat();
+
+                    // Send error through the stream
+                    const errorPayload = {
+                        error: {
+                            message: result.error.message || 'Upstream API error',
+                            type: result.error.type || 'upstream_error',
+                            code: result.error.code,
+                            status: result.status || 500
+                        }
+                    };
+
+                    // Use the existing stream to send error
+                    const { Readable } = require('stream');
+                    const errorStream = new Readable({ read() {} });
+                    errorStream.pipe(res);
+                    errorStream.push(`data: ${JSON.stringify(errorPayload)}\n\n`);
+                    errorStream.push('data: [DONE]\n\n');
+                    errorStream.push(null);
+                    return;
+                } catch (streamError) {
+                    console.error('KEEPALIVE: Failed to send error through stream:', streamError);
+                    // Fallback: if stream fails, we can't do much more since headers are already sent
+                    return;
+                }
+            } else {
+                // Normal mode: set headers and send JSON error
+                res.setHeader('Content-Type', 'application/json');
+                return res.status(result.status || 500).json({ error: result.error });
+            }
         }
 
         // Destructure the successful result
-        // For KEEPALIVE, `result.response` might be undefined initially if we change it,
-        // but `result.getResponsePromise` will exist.
-        const { response: geminiResponse, selectedKeyId, modelCategory, getResponsePromise } = result;
+        const { response: geminiResponse, selectedKeyId, modelCategory } = result;
 
         // --- Handle Response ---
 
-        // Set common headers
+        // Check if this is a KEEPALIVE special response first
+        if (result.isKeepAlive) {
+            console.log(`Processing KEEPALIVE mode response for model ${requestedModelId}`);
+
+            // In KEEPALIVE mode, the heartbeat was already started in geminiProxyService
+            // and stopped when the response was received. Now we just need to send the final response.
+            if (keepAliveCallback) {
+                keepAliveCallback.sendFinalResponse(geminiResponse);
+            } else {
+                console.error("KEEPALIVE: No callback available to send final response");
+                // Fallback error response
+                const errorPayload = JSON.stringify({
+                    error: {
+                        message: 'KEEPALIVE callback not available',
+                        type: 'keepalive_internal_error'
+                    }
+                });
+                res.write(`data: ${errorPayload}\n\n`);
+                res.write('data: [DONE]\n\n');
+                return res.end();
+            }
+            return; // Exit early for KEEPALIVE mode
+        }
+
+        // Set common headers (only for non-KEEPALIVE mode)
         res.setHeader('X-Proxied-By', 'gemini-proxy-panel-node');
         res.setHeader('X-Selected-Key-ID', selectedKeyId); // Send back which key was used (optional)
 
@@ -460,115 +668,44 @@ router.post('/chat/completions', async (req, res, next) => {
                 // May need to handle other response types...
             }
 
-            // Check if this is a KEEPALIVE special response or normal streaming
-            if (result.isKeepAlive && getResponsePromise) {
-                const requestedModelIdFromKeepAlive = result.requestedModelId; // Use the one from the result object
-                console.log(`Processing KEEPALIVE mode response for model ${requestedModelIdFromKeepAlive} (will await Vertex)`);
-
-                const keepAliveSseStream = new Readable({ read() {} });
-                keepAliveSseStream.pipe(res); // Pipe to response immediately to send headers and initial keep-alives
-
-                let keepAliveTimerId;
-                const sendKeepAliveSseChunk = () => {
-                    const keepAliveSseData = {
-                        id: "keepalive",
-                        object: "chat.completion.chunk",
-                        created: Math.floor(Date.now() / 1000),
-                        model: requestedModelIdFromKeepAlive,
-                        choices: [{ index: 0, delta: {}, finish_reason: null }]
-                    };
-                    if (!res.writableEnded) {
-                        keepAliveSseStream.push(`data: ${JSON.stringify(keepAliveSseData)}\n\n`);
-                    } else {
-                        if (keepAliveTimerId) clearInterval(keepAliveTimerId);
-                    }
-                };
-
-                keepAliveTimerId = setInterval(sendKeepAliveSseChunk, 5000);
-                sendKeepAliveSseChunk(); // Send first one
-
-                getResponsePromise.then(vertexResponseData => {
-                    clearInterval(keepAliveTimerId);
-                    if (res.writableEnded) {
-                        console.warn("KEEPALIVE: Response stream ended before Vertex data could be sent.");
-                        return;
-                    }
-                    const openAIResponse = JSON.parse(transformUtils.transformGeminiResponseToOpenAI(
-                        vertexResponseData,
-                        requestedModelIdFromKeepAlive
-                    ));
-                    const content = openAIResponse.choices[0].message.content || "";
-                    const completeChunk = {
-                        id: `chatcmpl-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-                        object: "chat.completion.chunk",
-                        created: Math.floor(Date.now() / 1000),
-                        model: requestedModelIdFromKeepAlive,
-                        choices: [{
-                            index: 0,
-                            delta: { role: "assistant", content: content },
-                            finish_reason: openAIResponse.choices[0].finish_reason || "stop"
-                        }]
-                    };
-                    keepAliveSseStream.push(`data: ${JSON.stringify(completeChunk)}\n\n`);
-                    keepAliveSseStream.push('data: [DONE]\n\n');
-                    keepAliveSseStream.push(null);
-                }).catch(error => {
-                    console.error("Error awaiting or processing Vertex KEEPALIVE response:", error);
-                    clearInterval(keepAliveTimerId);
-                    if (!res.writableEnded) {
-                        const errorPayload = {
-                            error: {
-                                message: error.message || 'Failed to get KEEPALIVE response from Vertex',
-                                type: error.type || 'vertex_proxy_error',
-                                code: error.code,
-                                status: error.status
-                            }
-                        };
-                        keepAliveSseStream.push(`data: ${JSON.stringify(errorPayload)}\n\n`);
-                        keepAliveSseStream.push('data: [DONE]\n\n');
-                        keepAliveSseStream.push(null);
-                    }
-                });
-
-            } else { // Standard (non-KEEPALIVE) Gemini and Vertex streams
-                if (!geminiResponse || !geminiResponse.body || typeof geminiResponse.body.pipe !== 'function') {
-                    console.error('Upstream response body is not a readable stream for standard streaming request.');
-                    const errorPayload = JSON.stringify({ error: { message: 'Upstream response body is not readable.', type: 'proxy_error' } });
-                    res.write(`data: ${errorPayload}\n\n`); // Use res.write for SSE
-                    res.write('data: [DONE]\n\n');
-                    return res.end();
-                }
-
-                console.log(`Piping ${selectedKeyId === 'vertex-ai' ? 'Vertex' : 'Gemini'} stream through transformer.`);
-                geminiResponse.body.pipe(streamTransformer).pipe(res);
-
-                geminiResponse.body.on('error', (err) => {
-                    console.error(`Error reading stream from upstream (${selectedKeyId}):`, err);
-                    if (!res.headersSent) {
-                        // If headers not sent, we can still send a JSON error
-                        res.status(500).json({ error: { message: 'Error reading stream from upstream API.' } });
-                    } else if (!res.writableEnded) {
-                        // If headers sent but stream not ended, try to send an SSE error then end
-                        const sseError = JSON.stringify({ error: { message: 'Upstream stream error', type: 'upstream_error'} });
-                        res.write(`data: ${sseError}\n\n`);
-                        res.write('data: [DONE]\n\n');
-                        res.end();
-                    }
-                    // If res.writableEnded is true, nothing more we can do.
-                });
-
-                streamTransformer.on('error', (err) => {
-                    console.error('Error in stream transformer:', err);
-                    if (!res.headersSent) {
-                        res.status(500).json({ error: { message: 'Error processing stream data.' } });
-                    } else if (!res.writableEnded) {
-                        const sseError = JSON.stringify({ error: { message: 'Stream processing error', type: 'transform_error'} });
-                        res.write(`data: ${sseError}\n\n`);
-                        res.write('data: [DONE]\n\n');
-                        res.end();
-                    }
-                });
+            // Standard (non-KEEPALIVE) Gemini and Vertex streams
+            if (!geminiResponse || !geminiResponse.body || typeof geminiResponse.body.pipe !== 'function') {
+                console.error('Upstream response body is not a readable stream for standard streaming request.');
+                const errorPayload = JSON.stringify({ error: { message: 'Upstream response body is not readable.', type: 'proxy_error' } });
+                res.write(`data: ${errorPayload}\n\n`); // Use res.write for SSE
+                res.write('data: [DONE]\n\n');
+                return res.end();
             }
+
+            console.log(`Piping ${selectedKeyId === 'vertex-ai' ? 'Vertex' : 'Gemini'} stream through transformer.`);
+            geminiResponse.body.pipe(streamTransformer).pipe(res);
+
+            geminiResponse.body.on('error', (err) => {
+                console.error(`Error reading stream from upstream (${selectedKeyId}):`, err);
+                if (!res.headersSent) {
+                    // If headers not sent, we can still send a JSON error
+                    res.status(500).json({ error: { message: 'Error reading stream from upstream API.' } });
+                } else if (!res.writableEnded) {
+                    // If headers sent but stream not ended, try to send an SSE error then end
+                    const sseError = JSON.stringify({ error: { message: 'Upstream stream error', type: 'upstream_error'} });
+                    res.write(`data: ${sseError}\n\n`);
+                    res.write('data: [DONE]\n\n');
+                    res.end();
+                }
+                // If res.writableEnded is true, nothing more we can do.
+            });
+
+            streamTransformer.on('error', (err) => {
+                console.error('Error in stream transformer:', err);
+                if (!res.headersSent) {
+                    res.status(500).json({ error: { message: 'Error processing stream data.' } });
+                } else if (!res.writableEnded) {
+                    const sseError = JSON.stringify({ error: { message: 'Stream processing error', type: 'transform_error'} });
+                    res.write(`data: ${sseError}\n\n`);
+                    res.write('data: [DONE]\n\n');
+                    res.end();
+                }
+            });
 
              console.log(`Streaming response initiated for key ${selectedKeyId}`);
 

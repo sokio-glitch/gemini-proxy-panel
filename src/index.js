@@ -1,16 +1,18 @@
 // Load environment variables from .env file FIRST
 require('dotenv').config();
 
-// Manually load VERTEX from .env before doing anything else that might need it
-const vertexService = require('./services/vertexProxyService'); // Imports and triggers manual load
-
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 
-// Import the database connection and sync function (this will also trigger initialization)
-const { db } = require('./db'); 
+// Import the database module (this will also trigger initialization)
+const dbModule = require('./db');
+
+// Import Vertex service but don't initialize yet - will be done after DB is ready
+const vertexService = require('./services/vertexProxyService');
+
+// Note: schedulerService is imported lazily in routes/adminApi.js to avoid database initialization issues
 
 // Import route handlers
 const authRoutes = require('./routes/auth');
@@ -57,9 +59,8 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // --- Basic Routes ---
 
 // Root route: Redirects to /admin/index.html if logged in, otherwise requireAdminAuth redirects to /login.html
-app.get('/', requireAdminAuth, (req, res) => {
-    // If we reach here, user is authenticated by requireAdminAuth
-    res.redirect('/admin/index.html');
+app.get('/', (req, res) => {
+    res.redirect('/login.html');
 });
 
 // Redirect /login to the static HTML file
@@ -92,9 +93,9 @@ app.use((err, req, res, next) => {
 });
 
 // --- Start Server ---
-app.listen(port, '0.0.0.0', () => {
-    console.log(`Gemini Proxy Panel (Node.js version) listening on port ${port} (all interfaces)`);
-    
+app.listen(port, '0.0.0.0', async () => {
+    console.log(`JimiHub (Node.js version) listening on port ${port} (all interfaces)`);
+
     // Log Proxy Pool Status
     const proxyStatus = proxyPool.getProxyPoolStatus(); // Get status from proxyPool module
     if (proxyStatus.enabled) {
@@ -120,9 +121,14 @@ app.listen(port, '0.0.0.0', () => {
     // Check if running in Hugging Face Space
     if (process.env.HUGGING_FACE === '1' && process.env.SPACE_HOST) {
         const adminUrl = `https://${process.env.SPACE_HOST}/admin`;
+        const endpointUrl = `https://${process.env.SPACE_HOST}/v1`;
         console.log(`Hugging Face Space Admin UI: ${adminUrl}`);
+        console.log(`Hugging Face Space Endpoint: ${endpointUrl}`);
     } else {
         // Fallback for local or other environments
-        console.log(`Admin UI should be available at http://localhost:${port}/admin (or the server's public address)`);
+        const adminUrl = `http://localhost:${port}/admin`;
+        const endpointUrl = `http://localhost:${port}/v1`;
+        console.log(`Admin UI available at: ${adminUrl} (or the server's public address)`);
+        console.log(`API Endpoint available at: ${endpointUrl} (or the server's public address)`);
     }
 });

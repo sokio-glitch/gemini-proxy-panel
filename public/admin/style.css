@@ -1,5 +1,92 @@
 /* Optional: Add custom CSS rules here if needed */
 
+/* Light mode warm background colors */
+body[data-theme="light"] {
+    background-color: #f5f3f0 !important; /* Warm light khaki background */
+}
+
+body[data-theme="light"] .bg-gray-100 {
+    background-color: #f5f3f0 !important; /* Warm light khaki background */
+}
+
+body[data-theme="light"] .bg-white {
+    background-color: #faf9f7 !important; /* Slightly warmer white for cards */
+}
+
+body[data-theme="light"] section {
+    background-color: #faf9f7 !important; /* Slightly warmer white for sections */
+}
+
+/* Light mode border and shadow adjustments for warm theme */
+body[data-theme="light"] .border,
+body[data-theme="light"] .border-gray-200,
+body[data-theme="light"] .border-gray-300 {
+    border-color: #e6ddd4 !important; /* Warmer border color */
+}
+
+body[data-theme="light"] .shadow,
+body[data-theme="light"] .shadow-md,
+body[data-theme="light"] .shadow-lg {
+    box-shadow: 0 1px 3px 0 rgba(139, 116, 88, 0.1), 0 1px 2px 0 rgba(139, 116, 88, 0.06) !important; /* Warmer shadow */
+}
+
+/* Adjust modal and card backgrounds for warm theme */
+body[data-theme="light"] .modal-content,
+body[data-theme="light"] .card-item {
+    background-color: #faf9f7 !important;
+    border-color: #e6ddd4 !important;
+}
+
+/* Light mode input field adjustments for warm theme */
+body[data-theme="light"] input[type="text"],
+body[data-theme="light"] input[type="password"],
+body[data-theme="light"] input[type="number"],
+body[data-theme="light"] textarea,
+body[data-theme="light"] select {
+    background-color: #f8f6f3 !important; /* Warm input background */
+    border-color: #e6ddd4 !important; /* Warmer border */
+}
+
+body[data-theme="light"] input[type="text"]:focus,
+body[data-theme="light"] input[type="password"]:focus,
+body[data-theme="light"] input[type="number"]:focus,
+body[data-theme="light"] textarea:focus,
+body[data-theme="light"] select:focus {
+    background-color: #faf9f7 !important; /* Slightly lighter when focused */
+    border-color: #3b82f6 !important; /* Keep blue focus border */
+    box-shadow: 0 0 0 1px #3b82f6 !important;
+}
+
+/* Light mode button adjustments for warm theme */
+body[data-theme="light"] .bg-gray-100 {
+    background-color: #f0ede8 !important; /* Warmer gray-100 */
+}
+
+body[data-theme="light"] .bg-gray-200 {
+    background-color: #e8e3dc !important; /* Warmer gray-200 */
+}
+
+body[data-theme="light"] .hover\:bg-gray-200:hover {
+    background-color: #e0d9d0 !important; /* Warmer hover state */
+}
+
+body[data-theme="light"] .hover\:bg-gray-300:hover {
+    background-color: #d6cfc4 !important; /* Warmer hover state */
+}
+
+/* Light mode additional button and hover state adjustments */
+body[data-theme="light"] .bg-white {
+    background-color: #faf9f7 !important; /* Warmer white for buttons */
+}
+
+body[data-theme="light"] .hover\:bg-gray-50:hover {
+    background-color: #f5f2ed !important; /* Warmer hover state */
+}
+
+body[data-theme="light"] .hover\:bg-red-50:hover {
+    background-color: #fef7f7 !important; /* Slightly warmer red hover */
+}
+
 /* Statistics bar styles */
 .stats-bar {
     transition: box-shadow 0.2s ease; /* Removed background-color transition */
@@ -77,4 +164,538 @@ body[data-theme="dark"] .card-item p {
 body[data-theme="dark"] .card-item .bg-blue-100 {
     background-color: #2563eb; /* Darker blue badge bg */
     color: #eff6ff; /* Light text for badge */
+}
+
+/* Tab styles */
+.api-tab {
+    border-bottom-color: transparent;
+    color: #6b7280;
+    transition: all 0.2s ease;
+}
+
+.api-tab:hover {
+    color: #374151;
+    border-bottom-color: #d1d5db;
+}
+
+.api-tab.active {
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
+}
+
+/* Tab content */
+.tab-content {
+    transition: opacity 0.2s ease;
+}
+
+.tab-content.hidden {
+    display: none;
+}
+
+/* Dark mode tab styles */
+body[data-theme="dark"] .api-tab {
+    color: #9ca3af;
+}
+
+body[data-theme="dark"] .api-tab:hover {
+    color: #d1d5db;
+    border-bottom-color: #4b5563;
+}
+
+body[data-theme="dark"] .api-tab.active {
+    color: #60a5fa;
+    border-bottom-color: #60a5fa;
+}
+
+/* Vertex configuration display styles */
+#vertex-config-display {
+    transition: background-color 0.2s ease;
+}
+
+body[data-theme="dark"] #vertex-config-display {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: #d1d5db;
+}
+
+/* Authentication mode radio buttons */
+.form-radio {
+    color: #3b82f6;
+}
+
+body[data-theme="dark"] .form-radio {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: #60a5fa;
+}
+
+body[data-theme="dark"] .form-radio:checked {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
+}
+
+/* Status badges in dark mode */
+
+
+/* Button styles in dark mode */
+body[data-theme="dark"] .border-red-300 {
+    border-color: #dc2626 !important;
+}
+
+body[data-theme="dark"] .text-red-700 {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .hover\:bg-red-50:hover {
+    background-color: #7f1d1d !important;
+}
+
+/* Form elements in dark mode */
+body[data-theme="dark"] input[type="text"],
+body[data-theme="dark"] textarea,
+body[data-theme="dark"] select {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: #d1d5db;
+}
+
+body[data-theme="dark"] input[type="text"]:focus,
+body[data-theme="dark"] textarea:focus,
+body[data-theme="dark"] select:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 1px #60a5fa;
+}
+
+body[data-theme="dark"] input[type="text"]::placeholder,
+body[data-theme="dark"] textarea::placeholder {
+    color: #9ca3af;
+}
+
+/* Dark mode base styles */
+body[data-theme="dark"] {
+    background-color: #1a202c !important;
+    color: #e2e8f0 !important;
+}
+
+body[data-theme="dark"] .container,
+body[data-theme="dark"] #main-content {
+    background-color: #1a202c !important;
+}
+
+body[data-theme="dark"] .bg-white,
+body[data-theme="dark"] section,
+body[data-theme="dark"] .modal-content,
+body[data-theme="dark"] .card-item {
+    background-color: #2d3748 !important;
+}
+
+body[data-theme="dark"] .bg-gray-100 {
+    background-color: #1a202c !important;
+}
+
+body[data-theme="dark"] .text-gray-700,
+body[data-theme="dark"] .text-gray-800,
+body[data-theme="dark"] .text-gray-900,
+body[data-theme="dark"] .font-medium,
+body[data-theme="dark"] h1,
+body[data-theme="dark"] h2,
+body[data-theme="dark"] h3 {
+    color: #e2e8f0 !important;
+}
+
+body[data-theme="dark"] .text-gray-500,
+body[data-theme="dark"] .text-gray-600 {
+    color: #a0aec0 !important;
+}
+
+body[data-theme="dark"] .border,
+body[data-theme="dark"] input,
+body[data-theme="dark"] select,
+body[data-theme="dark"] textarea {
+    border-color: #4a5568 !important;
+}
+
+body[data-theme="dark"] input,
+body[data-theme="dark"] select,
+body[data-theme="dark"] textarea {
+    background-color: #2d3748 !important;
+    color: #e2e8f0 !important;
+}
+
+body[data-theme="dark"] .bg-gray-200,
+body[data-theme="dark"] .bg-gray-300 {
+    background-color: #4a5568 !important;
+}
+
+body[data-theme="dark"] .hover\:bg-gray-300:hover {
+    background-color: #2d3748 !important;
+}
+
+body[data-theme="dark"] .bg-indigo-600 {
+    background-color: #4c51bf !important;
+}
+
+body[data-theme="dark"] .hover\:bg-indigo-700:hover {
+    background-color: #434190 !important;
+}
+
+body[data-theme="dark"] .text-indigo-600 {
+    color: #7f9cf5 !important;
+}
+
+body[data-theme="dark"] .hover\:text-indigo-800:hover {
+    color: #6b46c1 !important;
+}
+
+body[data-theme="dark"] .bg-blue-50,
+body[data-theme="dark"] .bg-blue-100 {
+    background-color: #2c5282 !important;
+}
+
+body[data-theme="dark"] .text-blue-800 {
+    color: #bee3f8 !important;
+}
+
+body[data-theme="dark"] .text-xs.px-2.py-1.bg-blue-100.text-blue-800.rounded-full {
+    background-color: #3182ce !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .p-4.border.rounded-md.bg-white {
+    background-color: #2d3748 !important;
+}
+
+body[data-theme="dark"] .text-gray-900 {
+    color: #e2e8f0 !important;
+}
+
+body[data-theme="dark"] .focus\:border-indigo-500:focus,
+body[data-theme="dark"] .focus\:ring-indigo-500:focus {
+    border-color: #7f9cf5 !important;
+    box-shadow: 0 0 0 1px #7f9cf5 !important;
+}
+
+/* Legacy toggle switches (for other parts of the app) */
+body[data-theme="dark"] .toggle-label {
+    background-color: #4a5568 !important;
+}
+
+body[data-theme="dark"] .toggle-checkbox:checked + .toggle-label {
+    background-color: #68D391 !important;
+}
+
+body[data-theme="dark"] .toggle-checkbox {
+    border-color: #4a5568 !important;
+}
+
+body[data-theme="dark"] .toggle-checkbox:checked {
+    border-color: #68D391 !important;
+}
+
+body[data-theme="dark"] label[for^="safety-toggle"] {
+    color: #e2e8f0 !important;
+}
+
+body[data-theme="dark"] .text-green-600 {
+    color: #68D391 !important;
+}
+
+body[data-theme="dark"] .text-red-600 {
+    color: #F56565 !important;
+}
+
+/* Settings Modal Toggle Switch */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 56px;
+    height: 32px;
+    align-self: center;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: all .3s ease;
+    border-radius: 32px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 24px;
+    width: 24px;
+    left: 4px;
+    top: 4px;
+    background-color: white;
+    transition: all .3s ease;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+input:checked + .toggle-slider {
+    background-color: #10B981;
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(24px);
+}
+
+/* Dark mode for settings modal */
+body[data-theme="dark"] #settings-modal .bg-white {
+    background-color: #1f2937 !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] #settings-modal .text-gray-900 {
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] #settings-modal .text-gray-700 {
+    color: #d1d5db !important;
+}
+
+body[data-theme="dark"] #settings-modal .text-gray-500 {
+    color: #9ca3af !important;
+}
+
+body[data-theme="dark"] #settings-modal .border-gray-300 {
+    border-color: #4b5563 !important;
+}
+
+body[data-theme="dark"] #settings-modal input[type="number"] {
+    background-color: #374151 !important;
+    color: #e5e7eb !important;
+    border-color: #4b5563 !important;
+}
+
+body[data-theme="dark"] #settings-modal .bg-gray-100 {
+    background-color: #374151 !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] #settings-modal .bg-gray-100:hover {
+    background-color: #4b5563 !important;
+}
+
+/* Dark mode for toggle switch */
+body[data-theme="dark"] .toggle-slider {
+    background-color: #4b5563 !important;
+}
+
+body[data-theme="dark"] input:checked + .toggle-slider {
+    background-color: #10B981 !important;
+}
+
+/* Custom dropdown dark mode styles */
+body[data-theme="dark"] #custom-model-dropdown {
+    background-color: #2d3748 !important;
+    border-color: #4a5568 !important;
+}
+
+body[data-theme="dark"] #custom-model-dropdown div {
+    color: #e2e8f0 !important;
+}
+
+body[data-theme="dark"] #custom-model-dropdown div:hover {
+    background-color: #4a5568 !important;
+}
+
+/* Dark mode button adjustments for Managed Models */
+body[data-theme="dark"] .set-individual-quota {
+    color: #90cdf4 !important; /* Lighter blue */
+}
+body[data-theme="dark"] .set-individual-quota:hover {
+    color: #bee3f8 !important; /* Even lighter blue on hover */
+}
+body[data-theme="dark"] .delete-model {
+    color: #fbb6ce !important; /* Lighter red/pink */
+}
+body[data-theme="dark"] .delete-model:hover {
+    color: #fecaca !important; /* Even lighter red/pink on hover */
+}
+
+/* Dark mode adjustments for text-based delete buttons */
+body[data-theme="dark"] .delete-worker-key,
+body[data-theme="dark"] .delete-gemini-key { /* .delete-model already covered above */
+    color: #fbb6ce !important; /* Lighter red/pink */
+}
+body[data-theme="dark"] .delete-worker-key:hover,
+body[data-theme="dark"] .delete-gemini-key:hover { /* .delete-model already covered above */
+    color: #fecaca !important; /* Even lighter red/pink on hover */
+}
+
+/* Dark mode adjustments for text-based action buttons */
+body[data-theme="dark"] .test-gemini-key { /* .set-individual-quota already covered above */
+     color: #90cdf4 !important; /* Lighter blue */
+}
+body[data-theme="dark"] .test-gemini-key:hover { /* .set-individual-quota already covered above */
+     color: #bee3f8 !important; /* Even lighter blue on hover */
+}
+
+/* Adjust Generate Worker Key button (text-based) */
+body[data-theme="dark"] #generate-worker-key {
+    color: #a3bffa !important; /* Lighter indigo */
+}
+body[data-theme="dark"] #generate-worker-key:hover {
+    color: #c3dafe !important; /* Even lighter indigo */
+}
+
+/* Adjust Set Category Quotas button (background) */
+body[data-theme="dark"] #set-category-quotas-btn {
+    background-color: #4299e1 !important; /* Brighter blue */
+    color: #ffffff !important;
+}
+body[data-theme="dark"] #set-category-quotas-btn:hover {
+    background-color: #63b3ed !important; /* Lighter blue on hover */
+}
+
+/* Adjust Run Test button (background) */
+body[data-theme="dark"] .run-test-btn {
+    background-color: #48bb78 !important; /* Brighter green */
+    color: #ffffff !important;
+}
+body[data-theme="dark"] .run-test-btn:hover {
+    background-color: #68d391 !important; /* Lighter green on hover */
+}
+
+/* Adjust Modal Cancel buttons (background) */
+body[data-theme="dark"] #cancel-category-quotas,
+body[data-theme="dark"] #cancel-individual-quota {
+    background-color: #4a5568 !important; /* Darker gray background */
+    color: #e2e8f0 !important; /* Light text */
+    border-color: #718096 !important; /* Gray border */
+}
+body[data-theme="dark"] #cancel-category-quotas:hover,
+body[data-theme="dark"] #cancel-individual-quota:hover {
+    background-color: #718096 !important; /* Lighter gray background on hover */
+}
+
+/* Dark mode adjustments for Ignore Error button */
+body[data-theme="dark"] .clear-gemini-key-error {
+    color: #faf089 !important; /* Lighter yellow (Tailwind yellow-300) */
+}
+body[data-theme="dark"] .clear-gemini-key-error:hover {
+    color: #f6e05e !important;
+}
+
+/* Dark mode adjustments for Vertex configuration buttons */
+body[data-theme="dark"] #clear-vertex-config {
+    color: #fbb6ce !important; /* Lighter red/pink */
+    border-color: #f56565 !important; /* Red border */
+}
+body[data-theme="dark"] #clear-vertex-config:hover {
+    background-color: #742a2a !important; /* Dark red background on hover */
+    color: #fecaca !important; /* Even lighter red/pink on hover */
+}
+
+/* Dark mode adjustments for radio buttons */
+body[data-theme="dark"] input[type="radio"] {
+    background-color: #2d3748 !important;
+    border-color: #4a5568 !important;
+}
+
+body[data-theme="dark"] input[type="radio"]:checked {
+    background-color: #3182ce !important;
+    border-color: #3182ce !important;
+}
+
+body[data-theme="dark"] input[type="radio"]:focus {
+    box-shadow: 0 0 0 2px #3182ce !important;
+}
+
+/* Dark mode adjustments for status badges */
+body[data-theme="dark"] .bg-green-100.text-green-800 {
+    background-color: #065f46 !important;
+    color: #d1fae5 !important;
+}
+
+body[data-theme="dark"] .bg-gray-100.text-gray-800 {
+    background-color: #374151 !important;
+    color: #d1d5db !important;
+}
+
+/* Update Notifier Styles */
+#update-notifier {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 18px;
+    background: linear-gradient(135deg, #ff4444, #ff6666);
+    border-radius: 9px;
+    margin-left: 12px;
+    vertical-align: text-top;
+    cursor: pointer;
+    transition: all 0.3s ease-in-out;
+    font-size: 10px;
+    font-weight: bold;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 4px rgba(255, 68, 68, 0.3);
+    position: relative;
+    transform: translateY(-2px);
+    padding: 0 6px;
+}
+
+/* Version Display Styles (when no update available) */
+#update-notifier.version-display {
+    background: linear-gradient(135deg, #3b82f6, #60a5fa) !important;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3) !important;
+    min-width: auto;
+    padding: 0 8px;
+}
+
+#update-notifier.version-display:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
+}
+
+#update-notifier:not(.version-display):hover {
+    transform: translateY(-2px) scale(1.1);
+    box-shadow: 0 4px 8px rgba(255, 68, 68, 0.4);
+}
+
+#update-notifier.hidden {
+    display: none;
+}
+
+/* Update Notifier Tooltip */
+#update-notifier::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: normal;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease-in-out;
+    z-index: 1000;
+    margin-top: 5px;
+    text-shadow: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+#update-notifier:hover::after {
+    opacity: 1;
+    visibility: visible;
 }

@@ -26,6 +26,11 @@ class GitHubSync {
       });
     }
 
+    // Log if encryption is enabled with a valid key
+    if (this.isConfigured() && this.isEncryptionEnabled()) {
+      console.log(`Using encrypt key: ${this.encryptKey}`);
+    }
+
     this.initialSyncCompleted = false;
     
     // Sync scheduling variables
@@ -44,27 +49,34 @@ class GitHubSync {
     return !!this.encryptKey && this.encryptKey.length >= 32;
   }
 
+  // Validate if a buffer has a valid SQLite header
+  validateSQLiteHeader(data) {
+    if (!data || data.length < 16) {
+      return false;
+    }
+
+    const sqliteHeader = Buffer.from("SQLite format 3\0");
+    const fileHeader = data.subarray(0, 16);
+
+    return Buffer.compare(fileHeader, sqliteHeader) === 0;
+  }
+
   // Check if a buffer appears to be encrypted with our format
   isEncryptedData(data) {
     // A simple check to determine if data is likely encrypted:
     // Our encrypted format has a 16-byte IV at the beginning,
     // and encrypted SQLite databases won't start with the standard SQLite header
     if (!data || data.length < 20) return false;
-    
+
     // If encryption is enabled and the data doesn't match SQLite format
     // it's likely encrypted
     if (this.isEncryptionEnabled()) {
-      // SQLite databases start with "SQLite format 3\0"
-      const sqliteHeader = Buffer.from("SQLite format 3\0");
-      const header = data.slice(0, 16);
-      
-      // If the first 16 bytes are not the SQLite header, it might be an IV
-      // which suggests the data is encrypted
-      if (Buffer.compare(header.slice(0, sqliteHeader.length), sqliteHeader) !== 0) {
+      // If the data doesn't have a valid SQLite header, it might be encrypted
+      if (!this.validateSQLiteHeader(data)) {
         return true;
       }
     }
-    
+
     return false;
   }
 
@@ -183,19 +195,26 @@ class GitHubSync {
               buffer = await this.decryptData(buffer);
             } catch (decryptError) {
               console.error('Failed to decrypt database:', decryptError.message);
-              console.log('Using the encrypted version as fallback');
+              console.error('Database file may be corrupted or encryption key is incorrect');
+              return false; // Don't save corrupted data
             }
           } else if (this.isEncryptionEnabled() && !isEncrypted) {
             console.log('Downloaded database file is plaintext, skipping decryption (plaintext to encrypted transition phase)');
           } else {
             console.log('Downloaded database file is plaintext');
           }
-          
-          // Write the file to local path
-          await fs.writeFile(this.dbPath, buffer);
-          console.log('Database successfully downloaded and saved locally');
-          this.initialSyncCompleted = true;
-          return true;
+
+          // Validate the database file before saving
+          if (this.validateSQLiteHeader(buffer)) {
+            // Write the file to local path
+            await fs.writeFile(this.dbPath, buffer);
+            console.log('Database successfully downloaded and saved locally');
+            this.initialSyncCompleted = true;
+            return true;
+          } else {
+            console.error('Downloaded database file has invalid SQLite header, not saving');
+            return false;
+          }
         }
       } catch (error) {
         // File doesn't exist or other error
@@ -296,7 +315,7 @@ class GitHubSync {
       }
       
       // Create or update the file on GitHub
-      const result = await this.octokit.repos.createOrUpdateFileContents({
+      await this.octokit.repos.createOrUpdateFileContents({
         owner: this.owner,
         repo: this.repo,
         path: 'database.db',

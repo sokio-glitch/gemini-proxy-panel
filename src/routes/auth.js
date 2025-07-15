@@ -5,21 +5,16 @@ const { readRequestBody } = require('../utils/helpers'); // Although body-parser
 const router = express.Router();
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-const SESSION_SECRET_KEY = process.env.SESSION_SECRET_KEY;
 
 if (!ADMIN_PASSWORD) {
     console.error("FATAL: ADMIN_PASSWORD environment variable is not set. Admin login disabled.");
-}
-if (!SESSION_SECRET_KEY) {
-    // Error already logged in session.js, but good to be aware here too.
-    console.error("FATAL: SESSION_SECRET_KEY environment variable is not set. Login will fail.");
 }
 
 // --- Login Route ---
 // Path: /api/login (mounted under /api in server.js)
 router.post('/login', async (req, res, next) => {
-    if (!ADMIN_PASSWORD || !SESSION_SECRET_KEY) {
-        return res.status(500).json({ error: 'Server configuration error: Credentials or session secret not set.' });
+    if (!ADMIN_PASSWORD) {
+        return res.status(500).json({ error: 'Server configuration error: Admin password not set.' });
     }
 
     try {

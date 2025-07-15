@@ -18,14 +18,14 @@
      ![](image/3.0.jpg)
    * 选择`Existing Image`，在`Image URL`中填写项目的镜像。
      ```
-     dreamhartley705/gemini-proxy-panel:latest
+     dreamhartley705/jimihub:latest
      ```
      ![](image/4.0.jpg)
    * 点击`Connect`，在`Name`中填写一个自定义容器的名称，这个名称将会是访问URL的一部分，**不建议使用默认**，请自行填写。在下方选择容器的区域，推荐使用美国(US)区域。
      ![](image/4.1.jpg)
    * 选择免费容器类型。
      ![](image/4.2.jpg)
-   * 配置环境变量，具体内容可以参考[Hugging Face Space部署](../HuggingFace/Hugging%20Face%20Space部署.md)中`配置 Space Secrets`的部分。
+   * 配置环境变量，请确保填写`ADMIN_PASSWORD`,`GITHUB_PROJECT`,`GITHUB_PROJECT_PAT`这三个变量。`GITHUB_ENCRYPT_KEY`为可选的数据库加密选项，如果需要请自行填写。
      ![](image/4.3.jpg)<small>配置完成的示例</small>
    * 点击`Deploy web service`即可创建容器。
    * 在新页面中出现`Your service is live 🎉`表示部署成功，点击Log上方的URL即可访问容器地址。<br>
