@@ -94,6 +94,44 @@ router.post('/chat/completions', async (req, res, next) => {
     const requestedModelId = openAIRequestBody?.model; // Keep track for transformations
     
     try {
+        // --- Model Validation Step ---
+        // Get all available models to validate against the request
+        const modelsConfig = await configService.getModelsConfig();
+        let enabledModels = Object.keys(modelsConfig);
+
+        // Add search versions if web search is enabled
+        const webSearchEnabled = String(await configService.getSetting('web_search', '0')) === '1';
+        if (webSearchEnabled) {
+            const searchModels = Object.keys(modelsConfig)
+                .filter(modelId => /^gemini-[2-9]\.\d/.test(modelId) && !modelId.endsWith('-search'))
+                .map(modelId => `${modelId}-search`);
+            enabledModels = [...enabledModels, ...searchModels];
+        }
+        
+        // Add non-thinking versions
+        const nonThinkingModels = Object.keys(modelsConfig)
+            .filter(modelId => modelId.includes('gemini-2.5-flash-preview') && !modelId.endsWith(':non-thinking'))
+            .map(modelId => `${modelId}:non-thinking`);
+        enabledModels = [...enabledModels, ...nonThinkingModels];
+
+        // Add Vertex models if the feature is enabled
+        if (vertexProxyService.isVertexEnabled()) {
+            const vertexModels = vertexProxyService.getVertexSupportedModels();
+            enabledModels = [...enabledModels, ...vertexModels];
+        }
+
+        // Validate that the requested model is in the enabled list
+        if (!requestedModelId || !enabledModels.includes(requestedModelId)) {
+            return res.status(400).json({
+                error: {
+                    message: `Model not found or not enabled: ${requestedModelId}. Please check the /v1/models endpoint for available models.`,
+                    type: 'invalid_request_error',
+                    param: 'model'
+                }
+            });
+        }
+        // --- End Model Validation ---
+        
         // Check if this is a non-thinking model request
         const isNonThinking = requestedModelId?.endsWith(':non-thinking');
         // Remove the suffix for actual model lookup, but keep original for response
@@ -251,6 +289,35 @@ router.post('/chat/completions', async (req, res, next) => {
                         keepAliveSseStream.push('data: [DONE]\n\n');
                         keepAliveSseStream.push(null);
                     }
+                },
+                sendError: (errorData) => {
+                    try {
+                        // Double-check connection status
+                        if (res.writableEnded || res.destroyed || !res.writable) {
+                            console.warn("KEEPALIVE: Response stream ended before error could be sent.");
+                            return;
+                        }
+
+                        const errorPayload = {
+                            error: {
+                                message: errorData.message || 'Upstream API error',
+                                type: errorData.type || 'upstream_error',
+                                code: errorData.code
+                            }
+                        };
+
+                        keepAliveSseStream.push(`data: ${JSON.stringify(errorPayload)}\n\n`);
+                        keepAliveSseStream.push('data: [DONE]\n\n');
+                        keepAliveSseStream.push(null); // End the stream
+                    } catch (error) {
+                        console.error("Error sending KEEPALIVE error response:", error);
+                        // Try to end the stream gracefully
+                        try {
+                            keepAliveSseStream.push(null);
+                        } catch (e) {
+                            console.error("Failed to end stream after error:", e);
+                        }
+                    }
                 }
             };
         }
@@ -322,25 +389,10 @@ router.post('/chat/completions', async (req, res, next) => {
 
         // Check if this is a KEEPALIVE special response first
         if (result.isKeepAlive) {
-            console.log(`Processing KEEPALIVE mode response for model ${requestedModelId}`);
-
-            // In KEEPALIVE mode, the heartbeat was already started in geminiProxyService
-            // and stopped when the response was received. Now we just need to send the final response.
-            if (keepAliveCallback) {
-                keepAliveCallback.sendFinalResponse(geminiResponse);
-            } else {
-                console.error("KEEPALIVE: No callback available to send final response");
-                // Fallback error response
-                const errorPayload = JSON.stringify({
-                    error: {
-                        message: 'KEEPALIVE callback not available',
-                        type: 'keepalive_internal_error'
-                    }
-                });
-                res.write(`data: ${errorPayload}\n\n`);
-                res.write('data: [DONE]\n\n');
-                return res.end();
-            }
+            console.log(`KEEPALIVE mode activated for model ${requestedModelId} - response will be handled asynchronously`);
+            // In the new KEEPALIVE mode, the response is handled completely asynchronously
+            // The heartbeat is already started and the response will be sent when ready
+            // We just return here as everything is handled in the background
             return; // Exit early for KEEPALIVE mode
         }
 

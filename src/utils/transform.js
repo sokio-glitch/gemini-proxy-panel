@@ -17,11 +17,12 @@ function parseDataUri(dataUri) {
  * @param {object} requestBody - The OpenAI request body.
  * @param {string} [requestedModelId] - The specific model ID requested.
  * @param {boolean} [isSafetyEnabled=true] - Whether safety filtering is enabled for this request.
- * @returns {{ contents: any[]; systemInstruction?: any; tools?: any[] }} Gemini formatted request parts.
+ * @returns {{ contents: any[]; systemInstruction?: any; tools?: any[]; toolConfig?: any }} Gemini formatted request parts.
  */
 function transformOpenAiToGemini(requestBody, requestedModelId, isSafetyEnabled = true) {
 	const messages = requestBody.messages || [];
 	const openAiTools = requestBody.tools;
+	const openAiToolChoice = requestBody.tool_choice;
 
 	// 1. Transform Messages
 	const contents = [];
@@ -138,7 +139,45 @@ function transformOpenAiToGemini(requestBody, requestedModelId, isSafetyEnabled 
 		}
 	}
 
-	return { contents, systemInstruction, tools: geminiTools };
+	// 3. Transform Tool Choice to Tool Config
+	let toolConfig = undefined;
+	if (openAiToolChoice && geminiTools && geminiTools.length > 0) {
+		const functionCallingConfig = {};
+
+		if (typeof openAiToolChoice === 'string') {
+			switch (openAiToolChoice) {
+				case 'auto':
+					functionCallingConfig.mode = 'AUTO';
+					break;
+				case 'none':
+					functionCallingConfig.mode = 'NONE';
+					break;
+				default:
+					// If it's a string but not 'auto' or 'none', treat it as a specific function name
+					functionCallingConfig.mode = 'ANY';
+					functionCallingConfig.allowedFunctionNames = [openAiToolChoice];
+					break;
+			}
+		} else if (typeof openAiToolChoice === 'object' && openAiToolChoice.type === 'function') {
+			// Handle {"type": "function", "function": {"name": "function_name"}}
+			const functionName = openAiToolChoice.function?.name;
+			if (functionName) {
+				functionCallingConfig.mode = 'ANY';
+				functionCallingConfig.allowedFunctionNames = [functionName];
+			} else {
+				// Fallback to AUTO if function name is missing
+				functionCallingConfig.mode = 'AUTO';
+			}
+		} else {
+			// Default to AUTO for any other cases
+			functionCallingConfig.mode = 'AUTO';
+		}
+
+		toolConfig = { functionCallingConfig };
+		console.log(`Tool choice transformed: ${JSON.stringify(openAiToolChoice)} -> ${JSON.stringify(toolConfig)}`);
+	}
+
+	return { contents, systemInstruction, tools: geminiTools, toolConfig };
 }
 
 

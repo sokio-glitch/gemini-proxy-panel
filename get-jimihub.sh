@@ -221,7 +221,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./data:/usr/src/app/data
+      - ./data:/app/data
     restart: unless-stopped
 EOF
 }
@@ -337,6 +337,39 @@ restart_container() {
     fi
 }
 
+# 更新JimiHub
+update_jimihub() {
+    if [ "$INSTALLED" = false ]; then
+        echo -e "${RED}JimiHub未安装，无法更新${NC}"
+        return
+    fi
+
+    echo -e "${YELLOW}开始更新JimiHub...${NC}"
+    cd "$INSTALL_DIR"
+    if ! check_docker_compose; then
+        echo -e "${RED}Docker Compose未找到${NC}"
+        return
+    fi
+
+    echo "正在拉取最新的Docker镜像..."
+    if ! docker pull dreamhartley705/jimihub:latest; then
+        echo -e "${RED}✗ 拉取最新镜像失败，请检查网络或镜像名称。${NC}"
+        return
+    fi
+
+    echo "正在停止并使用新镜像重新创建容器..."
+    $DOCKER_COMPOSE_CMD up -d --force-recreate
+
+    sleep 5
+    if docker ps | grep -q "jimihub"; then
+        echo -e "${GREEN}✓ 更新完成！${NC}"
+    else
+        echo -e "${RED}✗ 更新失败，请检查错误信息${NC}"
+        echo -e "${YELLOW}容器日志:${NC}"
+        $DOCKER_COMPOSE_CMD logs
+    fi
+}
+
 # 卸载JimiHub
 uninstall_jimihub() {
     if [ "$INSTALLED" = false ]; then
@@ -344,15 +377,29 @@ uninstall_jimihub() {
         return
     fi
 
+    echo -e "${YELLOW}警告：这将停止并删除JimiHub容器。${NC}"
+    echo -n "是否保留数据库文件? (y/n) [默认: y]: "
+    read -r keep_data
+    keep_data=${keep_data:-y}
+
     echo -e "${YELLOW}开始卸载JimiHub...${NC}"
-    cd "$INSTALL_DIR"
-    if check_docker_compose; then
-        echo "正在停止并删除JimiHub容器..."
-        $DOCKER_COMPOSE_CMD down --volumes
+    
+    if [ -d "$INSTALL_DIR" ]; then
+        cd "$INSTALL_DIR"
+        if check_docker_compose; then
+            echo "正在停止并删除JimiHub容器..."
+            $DOCKER_COMPOSE_CMD down
+        fi
+        cd ..
     fi
 
-    echo "正在删除安装目录..."
-    rm -rf "$INSTALL_DIR"
+    if [[ "$keep_data" == "n" || "$keep_data" == "N" ]]; then
+        echo "正在删除安装目录（包括数据）..."
+        rm -rf "$INSTALL_DIR"
+        echo -e "${GREEN}✓ JimiHub及其数据已完全删除。${NC}"
+    else
+        echo -e "${GREEN}✓ JimiHub容器已停止。本地文件（包括数据）已保留在 $INSTALL_DIR ${NC}"
+    fi
 
     echo -n "是否要卸载Docker? (y/n) [默认: n]: "
     read -r uninstall_docker
@@ -362,7 +409,6 @@ uninstall_jimihub() {
         # 检查是否还有其他Docker容器
         if [ -n "$(docker ps -aq)" ]; then
             echo -e "${YELLOW}警告：检测到系统上存在其他Docker容器。为避免影响其他应用，Docker未被卸载。${NC}"
-            echo -e "${GREEN}✓ JimiHub容器和数据已删除。${NC}"
         else
             echo "正在卸载Docker..."
             if command -v apt-get &> /dev/null; then
@@ -378,8 +424,6 @@ uninstall_jimihub() {
             fi
             echo -e "${GREEN}✓ Docker卸载完成。${NC}"
         fi
-    else
-        echo -e "${GREEN}✓ JimiHub容器和数据已删除。${NC}"
     fi
 
     unregister_command
@@ -413,10 +457,11 @@ show_menu() {
     echo "2. 启动 JimiHub 容器"
     echo "3. 停止 JimiHub 容器"
     echo "4. 重启 JimiHub 容器"
-    echo "5. 卸载 JimiHub"
+    echo "5. 更新 JimiHub"
+    echo "6. 卸载 JimiHub"
     echo "0. 退出"
     echo ""
-    echo -n "请输入选项 [0-5]: "
+    echo -n "请输入选项 [0-6]: "
 }
 
 # 主函数
@@ -465,6 +510,12 @@ main() {
                 read -r
                 ;;
             5)
+                update_jimihub
+                echo ""
+                echo -n "按回车键继续..."
+                read -r
+                ;;
+            6)
                 uninstall_jimihub
                 ;;
             0)
